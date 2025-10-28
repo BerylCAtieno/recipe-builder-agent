@@ -4,11 +4,15 @@ import (
 	"log"
 	"os"
 
-	// Replace with your actual project path
 	"github.com/BerylCAtieno/recipe-agent/importer"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+
+	if err := godotenv.Load(); err != nil {
+		log.Println("Unable to find .env file or could not load")
+	}
 	// 1. Get Environment Variables
 	mongoURI := os.Getenv("MONGO_URI")
 	if mongoURI == "" {
