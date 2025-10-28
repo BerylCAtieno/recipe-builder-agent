@@ -18,12 +18,13 @@ import (
 const (
 	DatabaseName   = "recipes_db"
 	CollectionName = "recipes"
+	BatchSize      = 500
 )
 
 // ImportRecipes handles the connection, JSON reading, and data insertion into mongodb.
 func ImportRecipes(mongoURI string, jsonFilePath string) error {
 	// Setup MongoDB Connection
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	client, err := mongo.Connect(options.Client().ApplyURI(mongoURI))
@@ -59,13 +60,39 @@ func ImportRecipes(mongoURI string, jsonFilePath string) error {
 
 	// Get the collection handle
 	collection := client.Database(DatabaseName).Collection(CollectionName)
+	totalInserted := 0
 
-	// Perform Bulk Insertion
-	res, err := collection.InsertMany(ctx, documents)
-	if err != nil {
-		return fmt.Errorf("failed to insert recipes: %w", err)
+	// Perform Batch Insertion
+	for i := 0; i < len(recipes); i += BatchSize {
+		end := i + BatchSize
+		if end > len(recipes) {
+			end = len(recipes)
+		}
+
+		// Get the current batch slice
+		batch := recipes[i:end]
+
+		// Convert the batch slice to a slice of interfaces{} for InsertMany
+		var documents []interface{}
+		for _, recipe := range batch {
+			documents = append(documents, recipe)
+		}
+
+		// Execute InsertMany for the batch
+		// Set a shorter context for the insert itself (e.g., 10 seconds per batch)
+		insertCtx, insertCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		res, err := collection.InsertMany(insertCtx, documents)
+		insertCancel() // Clean up the batch context
+
+		if err != nil {
+			return fmt.Errorf("failed to insert batch %d-%d: %w", i, end, err)
+		}
+
+		insertedCount := len(res.InsertedIDs)
+		totalInserted += insertedCount
+		log.Printf("Inserted batch %d-%d. Count: %d. Total inserted: %d", i, end, insertedCount, totalInserted)
 	}
 
-	log.Printf("Successfully inserted %d documents into the %s collection.", len(res.InsertedIDs), CollectionName)
+	log.Printf("Successfully inserted a total of %d documents into the %s collection.", totalInserted, CollectionName)
 	return nil
 }
