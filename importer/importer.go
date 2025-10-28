@@ -80,7 +80,7 @@ func ImportRecipes(mongoURI string, jsonFilePath string) error {
 
 		// Execute InsertMany for the batch
 		// Set a shorter context for the insert itself (e.g., 10 seconds per batch)
-		insertCtx, insertCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		insertCtx, insertCancel := context.WithTimeout(context.Background(), 30*time.Second)
 		res, err := collection.InsertMany(insertCtx, documents)
 		insertCancel() // Clean up the batch context
 
